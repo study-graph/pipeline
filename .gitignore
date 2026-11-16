@@ -3,6 +3,7 @@ netze.md
 netze.clean.md
 chunks.json
 embeddings.npy
+index/
 
 # Python
 __pycache__/
