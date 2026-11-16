@@ -51,3 +51,11 @@ def put(index, doc, chunks, vectors, model, source_hash):
                                     encoding="utf-8")
     for name in ("embeddings.npy", "chunks.json", "meta.json"):
         os.replace(index / (name.split(".")[0] + ".tmp"), index / name)
+
+
+def where(chunk):
+    """Human-readable source of a chunk, e.g. 'netze, S. 3-4'."""
+    pages = chunk["pages"]
+    if not pages:
+        return chunk["doc"]
+    return f"{chunk['doc']}, S. {pages[0]}" + (f"-{pages[1]}" if pages[1] != pages[0] else "")

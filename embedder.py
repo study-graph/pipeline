@@ -40,14 +40,6 @@ def search(question, index=INDEX_DIR, k=TOP_K):
     return [(float(scores[i]), chunks[i]) for i in np.argsort(-scores)[:k]]
 
 
-def where(chunk):
-    """Human-readable source of a chunk, e.g. 'netze, S. 3-4'."""
-    pages = chunk["pages"]
-    if not pages:
-        return chunk["doc"]
-    return f"{chunk['doc']}, S. {pages[0]}" + (f"-{pages[1]}" if pages[1] != pages[0] else "")
-
-
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("question", nargs="+")
@@ -58,5 +50,5 @@ if __name__ == "__main__":
     except ValueError as e:
         raise SystemExit(f"error: {e}")
     for score, c in hits:
-        print(f"\n[{c['id']}] {score:.3f}  {where(c)}  {c['path']}")
+        print(f"\n[{c['id']}] {score:.3f}  {store.where(c)}  {c['path']}")
         print(c["text"][:300].strip())

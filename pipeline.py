@@ -3,6 +3,7 @@
   python pipeline.py ingest slides.pdf script.md      # parse -> clean -> chunk -> embed -> store
   python pipeline.py ingest corpus/ --index index     # every supported file below corpus/
   python pipeline.py ingest slides.pdf --save-steps debug/
+  python pipeline.py ask "Wie funktioniert der 3-way Handshake?"
 
 Every step is a function call; nothing is passed between steps through files. A file
 whose content has not changed since its last ingest is skipped, and of a changed file
@@ -13,6 +14,7 @@ import hashlib
 import sys
 from pathlib import Path
 
+import answer
 import chunker
 import clean
 import parse
@@ -72,7 +74,10 @@ def main():
     ing.add_argument("--force", action="store_true", help="also process unchanged files")
     ing.add_argument("--save-steps", metavar="DIR",
                      help="also write the parsed and the cleaned text there, for inspection")
+    answer.add_arguments(sub.add_parser("ask", help="answer a question from the index"))
     args = ap.parse_args()
+    if args.command == "ask":
+        sys.exit(answer.run(args))
 
     count, failed = chunker.token_counter(), 0
     for path in source_files(args.paths):
