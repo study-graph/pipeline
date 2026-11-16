@@ -1,14 +1,18 @@
-"""Build an embedding index over chunks.json, or query it.
+"""Embed texts with the local model, or search an index from the command line.
 
-  python3 embedder.py              # embed all chunks -> embeddings.npy
-  python3 embedder.py "deine Frage"  # retrieve top-k chunks for a query
+  python embedder.py "deine Frage"              # top-k chunks of the default index
+  python embedder.py "deine Frage" --index other/
+
+The index is built by `python pipeline.py ingest`.
 """
-import sys, json
+import argparse
+
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
-from config import EMBED_MODEL as MODEL
-CHUNKS, VECS = "chunks.json", "embeddings.npy"
+import store
+from config import EMBED_MODEL as MODEL, INDEX_DIR
+
 TOP_K = 5
 
 _model = None
@@ -21,29 +25,38 @@ def model():
 
 def encode(texts):
     # e5 is trained for cosine similarity -> L2-normalise so dot product == cosine.
-    return model().encode(texts, normalize_embeddings=True, show_progress_bar=True)
+    return model().encode(texts, normalize_embeddings=True, show_progress_bar=False)
 
 
-def build():
-    chunks = json.load(open(CHUNKS, encoding="utf-8"))
-    vecs = encode([c["embed_text"] for c in chunks]).astype(np.float32)
-    np.save(VECS, vecs)
-    print(f"{VECS}: {vecs.shape[0]} vectors x {vecs.shape[1]} dims")
+def search(question, index=INDEX_DIR, k=TOP_K):
+    """-> [(score, chunk)] of the k chunks most similar to the question."""
+    chunks, vecs, meta = store.load(index)
+    if not chunks:
+        raise ValueError(f"index {index} is empty; run `python pipeline.py ingest` first")
+    if meta["model"] != MODEL:
+        raise ValueError(f"index {index} uses model {meta['model']}, not {MODEL}")
+    q = encode([f"query: {question}"])[0]          # e5 wants the "query:" prefix
+    scores = vecs @ q                              # cosine, since both are normalised
+    return [(float(scores[i]), chunks[i]) for i in np.argsort(-scores)[:k]]
 
 
-def query(text):
-    chunks = json.load(open(CHUNKS, encoding="utf-8"))
-    vecs = np.load(VECS)
-    q = encode([f"query: {text}"])[0]          # e5 wants the "query:" prefix
-    scores = vecs @ q                          # cosine, since both are normalised
-    for i in np.argsort(-scores)[:TOP_K]:
-        c = chunks[i]
-        print(f"\n[{c['id']}] {scores[i]:.3f}  {c['path']}")
-        print(c["text"][:300].strip())
+def where(chunk):
+    """Human-readable source of a chunk, e.g. 'netze, S. 3-4'."""
+    pages = chunk["pages"]
+    if not pages:
+        return chunk["doc"]
+    return f"{chunk['doc']}, S. {pages[0]}" + (f"-{pages[1]}" if pages[1] != pages[0] else "")
 
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        query(" ".join(sys.argv[1:]))
-    else:
-        build()
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("question", nargs="+")
+    ap.add_argument("--index", default=INDEX_DIR)
+    args = ap.parse_args()
+    try:
+        hits = search(" ".join(args.question), args.index)
+    except ValueError as e:
+        raise SystemExit(f"error: {e}")
+    for score, c in hits:
+        print(f"\n[{c['id']}] {score:.3f}  {where(c)}  {c['path']}")
+        print(c["text"][:300].strip())
