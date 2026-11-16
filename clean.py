@@ -36,8 +36,32 @@ def squash(s):
 
 
 def key_of(text):
-    """Comparison key: digits are masked so 'Seite 3' and 'Seite 4' (or '4/25') match."""
-    return re.sub(r"\d+", "#", text).casefold()
+    """Comparison key of a line. Page counters are matched later by mask_counters."""
+    return text.casefold()
+
+
+def mask_counters(pages, numbers, min_run):
+    """Give lines that differ only by a running page number a common key.
+
+    'Seite 3' on page 3 and 'Seite 4' on page 4 are the same footer, but 'Übung 1' and
+    'Übung 2' on arbitrary slides are different titles. A number therefore only counts
+    as a page counter if it moves in step with the page number, either on most pages
+    or on at least twice min_run pages. A few numbered slides in a row do not reach
+    that. Headings are never counters: a numbered heading is content.
+    """
+    groups = defaultdict(list)                      # masked key -> [(page, line, numbers)]
+    for i, page in enumerate(pages):
+        for j, (text, key, level) in enumerate(page):
+            if key and not level and re.search(r"\d", key):
+                found = [int(d) for d in re.findall(r"\d+", key)]
+                groups[re.sub(r"\d+", "#", key)].append((i, j, found))
+    for masked, lines in groups.items():
+        for pos in range(len(lines[0][2])):
+            offsets = Counter(found[pos] - numbers[i] for i, _, found in lines)
+            for i, j, found in lines:
+                n = offsets[found[pos] - numbers[i]]
+                if n >= min_run and (n > len(pages) / 2 or n >= 2 * min_run):
+                    pages[i][j] = (pages[i][j][0], masked, pages[i][j][2])
 
 
 def cells(row):
@@ -95,7 +119,9 @@ def split_pages(text, page_sep, keep_tables, min_run):
     def load(sep, how):
         loaded = [load_page(r, keep_tables) for r in re.split(sep, text)]
         kept = [(p, n) for n, p in enumerate(loaded, 1) if p]
-        return [p for p, _ in kept], [n for _, n in kept], how
+        pages, numbers = [p for p, _ in kept], [n for _, n in kept]
+        mask_counters(pages, numbers, min_run)
+        return pages, numbers, how
 
     if page_sep:
         return load(page_sep, "--page-sep")
@@ -106,8 +132,9 @@ def split_pages(text, page_sep, keep_tables, min_run):
     # run of neighbouring blocks, which paragraphs do not.
     blocks, numbers, how = load(r"\n[ \t]*\n", "blank lines")
     runs = run_sizes([{l[1] for l in p if l[1]} for p in blocks])
-    framed = sum(any(l[1] and runs[l[1], i] >= min_run and any(c.isalpha() for c in l[0])
-                     for l in p) for i, p in enumerate(blocks))
+    framed = sum(any(l[1] and not l[2] and runs[l[1], i] >= min_run
+                     and any(c.isalpha() for c in l[0]) for l in p)
+                 for i, p in enumerate(blocks))
     if len(blocks) >= min_run and framed > len(blocks) / 2:
         return blocks, numbers, how
     return load(r"\f", None)
