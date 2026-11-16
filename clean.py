@@ -12,6 +12,9 @@ Nothing here is tied to a particular deck. The only assumptions are:
     run of neighbouring pages, while content changes from page to page;
   * a markdown heading on a page, set by parse.py from the font size, is its title.
     Without one, the first line below the header is taken instead.
+
+The output records where each source page starts as a comment line '<!-- page N -->',
+which chunker.py turns into the page range of a chunk.
 """
 import argparse
 import re
@@ -25,6 +28,7 @@ NESTED = 0.5       # a top line whose run is shorter than this share of the line
                    # is a title repeated over a few pages, not a second header line
 SLIDE_WORDS = 120  # median words per page up to which the input is treated as slides
 TITLE_CHARS = 120  # longer first lines are body text, not slide titles
+PAGE_MARK = "<!-- page {} -->"
 
 
 def squash(s):
@@ -83,24 +87,30 @@ def load_page(raw, keep_tables=False):
 
 
 def split_pages(text, page_sep, keep_tables, min_run):
-    """-> (pages, how they were separated)."""
-    def load(sep):
-        return [p for p in (load_page(r, keep_tables) for r in re.split(sep, text)) if p]
+    """-> (pages, their 1-based numbers in the source, how they were separated).
+
+    Empty pages are dropped but still counted, so the numbers match the source file.
+    The last value is None if the text has no pages at all.
+    """
+    def load(sep, how):
+        loaded = [load_page(r, keep_tables) for r in re.split(sep, text)]
+        kept = [(p, n) for n, p in enumerate(loaded, 1) if p]
+        return [p for p, _ in kept], [n for _, n in kept], how
 
     if page_sep:
-        return load(page_sep), "--page-sep"
+        return load(page_sep, "--page-sep")
     if "\f" in text:
-        return load(r"\f"), "form feed"
+        return load(r"\f", "form feed")
     # Some extractors separate pages by blank lines, but so does any markdown text its
     # paragraphs. Blocks are pages only if most of them carry a line that recurs on a
     # run of neighbouring blocks, which paragraphs do not.
-    blocks = load(r"\n[ \t]*\n")
+    blocks, numbers, how = load(r"\n[ \t]*\n", "blank lines")
     runs = run_sizes([{l[1] for l in p if l[1]} for p in blocks])
     framed = sum(any(l[1] and runs[l[1], i] >= min_run and any(c.isalpha() for c in l[0])
                      for l in p) for i, p in enumerate(blocks))
     if len(blocks) >= min_run and framed > len(blocks) / 2:
-        return blocks, "blank lines"
-    return load(r"\f"), "none (one page)"
+        return blocks, numbers, how
+    return load(r"\f", None)
 
 
 def run_sizes(units):
@@ -156,7 +166,7 @@ def first_line_title(body):
 
 
 def clean(text, page_sep=None, headings="auto", min_run=MIN_RUN, keep_tables=False):
-    pages, split = split_pages(text, page_sep, keep_tables, min_run)
+    pages, numbers, split = split_pages(text, page_sep, keep_tables, min_run)
     if not pages:
         return "", {"pages": 0, "sections": 0, "headings": "none", "split": split,
                     "chrome": Counter()}
@@ -171,7 +181,7 @@ def clean(text, page_sep=None, headings="auto", min_run=MIN_RUN, keep_tables=Fal
     #    even if it repeats over a few overlays.
     runs = run_sizes([{l[1] for l in p if l[1]} for p in pages])
     dropped = Counter()
-    sections = []                                   # [title or None, [body pages]]
+    sections = []                                   # [title or None, [(page number, body)]]
     for i, page in enumerate(pages):
         title = marked_title(page, i, runs, min_run, len(pages)) if by_page else None
         h = header_length(page, i, runs, min_run, NESTED if by_page else 0, title)
@@ -183,19 +193,26 @@ def clean(text, page_sep=None, headings="auto", min_run=MIN_RUN, keep_tables=Fal
         # Consecutive pages with the same title are one slide shown in several steps.
         same = sections and title and sections[-1][0] and sections[-1][0][1] == title[1]
         if same or (by_page and sections and not title):
-            sections[-1][1].append(body)
+            sections[-1][1].append((numbers[i], body))
         else:
-            sections.append([title, [body]])
+            sections.append([title, [(numbers[i], body)]])
 
     # 2. Remaining chrome (footers, displaced headers): lines recurring across a run of
     #    sections. Counting sections rather than pages keeps content that is merely
     #    repeated by the overlays of one slide. Lines without letters only count at the
     #    page edge, where page numbers sit; elsewhere they are data.
-    sec_runs = run_sizes([{l[1] for body in pgs for l in body if l[1]} for _, pgs in sections])
+    sec_runs = run_sizes([{l[1] for _, body in pgs for l in body if l[1]}
+                          for _, pgs in sections])
     out = []
     for s, (title, pgs) in enumerate(sections):
-        block, seen = [], Counter()
-        for body in pgs:
+        head = "#" * title[2] + " " + title[0] if title else ""
+        block, seen, content = [], Counter(), bool(head)
+        for number, body in pgs:
+            if split:                               # no page marks for unpaged text
+                block.append(PAGE_MARK.format(number))
+            if head:
+                block.append(head)
+                head = ""
             here = Counter()
             for j, (t, k, level) in enumerate(body):
                 edge = j in (0, len(body) - 1)
@@ -205,12 +222,11 @@ def clean(text, page_sep=None, headings="auto", min_run=MIN_RUN, keep_tables=Fal
                 here[t] += 1
                 if k is None or here[t] > seen[t]:      # skip what an earlier step showed
                     block.append("#" * level + " " + t if level and not by_page else t)
+                    content = content or bool(t)
             seen |= here
             block.append("")
-        body_text = re.sub(r"\n{3,}", "\n\n", "\n".join(block)).strip()
-        head = "#" * title[2] + " " + title[0] if title else ""
-        if head or body_text:
-            out.append("\n".join(x for x in (head, body_text) if x))
+        if content:
+            out.append(re.sub(r"\n{3,}", "\n\n", "\n".join(block)).strip())
 
     stats = {"pages": len(pages), "sections": len(out), "headings": headings, "split": split,
              "chrome": dropped}
@@ -238,8 +254,9 @@ def main():
     out = args.out or args.src.with_name(args.src.stem + ".clean.md")
     out.write_text(text, encoding="utf-8")
     chrome = stats["chrome"]
-    print(f"{out}: {stats['pages']} pages (split at: {stats['split']}) -> "
-          f"{stats['sections']} sections (headings: {stats['headings']}), {sum(chrome.values())} chrome lines dropped "
+    print(f"{out}: {stats['pages']} pages (split at: {stats['split'] or 'nothing'}) -> "
+          f"{stats['sections']} sections (headings: {stats['headings']}), "
+          f"{sum(chrome.values())} chrome lines dropped "
           f"({len(chrome)} distinct)")
     if args.verbose:
         for line, n in chrome.most_common():
