@@ -7,7 +7,7 @@ import sys, json
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
-MODEL = "intfloat/multilingual-e5-small"   # CPU-friendly, German + English
+from config import EMBED_MODEL as MODEL
 CHUNKS, VECS = "chunks.json", "embeddings.npy"
 TOP_K = 5
 

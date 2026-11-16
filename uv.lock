@@ -670,6 +670,7 @@ dependencies = [
     { name = "numpy" },
     { name = "pypdf" },
     { name = "sentence-transformers" },
+    { name = "tokenizers" },
 ]
 
 [package.metadata]
@@ -677,6 +678,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.5.3" },
     { name = "pypdf", specifier = ">=7.1.0" },
     { name = "sentence-transformers", specifier = ">=6.1.0" },
+    { name = "tokenizers", specifier = ">=0.23.2" },
 ]
 
 [[package]]
