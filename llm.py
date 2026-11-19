@@ -110,20 +110,17 @@ def resolve(role):
     return provider, model, url, key, value("REASONING")
 
 
-def generate(system, prompt, role="answer", temperature=None, timeout=120, as_json=False):
-    """-> the model's answer to prompt under the system instruction, as text.
-
-    temperature None leaves the provider default. as_json asks the provider for a JSON
-    response where it supports that; use generate_json to also parse it.
-    """
+def _open(role, system, prompt, temperature, as_json, timeout, stream=False):
+    """Send the request of a role. -> (open response, text extractor, provider, model, url)."""
     provider, model, url, key, reasoning = resolve(role)
     build = PROVIDERS[provider][0]
     headers, body, text_of = build(system, prompt, model, key, temperature, as_json, reasoning)
+    if stream:
+        body["stream"] = True
     request = urllib.request.Request(url, data=json.dumps(body).encode(),
                                      headers={"Content-Type": "application/json", **headers})
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            data = json.load(response)
+        return urllib.request.urlopen(request, timeout=timeout), text_of, provider, model, url
     except urllib.error.HTTPError as e:
         detail = e.read().decode(errors="replace")
         try:
@@ -133,6 +130,21 @@ def generate(system, prompt, role="answer", temperature=None, timeout=120, as_js
         raise LLMError(f"{provider} {model}: HTTP {e.code}: {str(detail)[:300]}") from None
     except (urllib.error.URLError, TimeoutError, ValueError) as e:
         raise LLMError(f"{provider} {model} at {url}: {e}") from None
+
+
+def generate(system, prompt, role="answer", temperature=None, timeout=120, as_json=False):
+    """-> the model's answer to prompt under the system instruction, as text.
+
+    temperature None leaves the provider default. as_json asks the provider for a JSON
+    response where it supports that; use generate_json to also parse it.
+    """
+    response, text_of, provider, model, url = _open(role, system, prompt, temperature,
+                                                    as_json, timeout)
+    try:
+        with response:
+            data = json.load(response)
+    except (TimeoutError, ValueError) as e:
+        raise LLMError(f"{provider} {model} at {url}: {e}") from None
     try:
         text = text_of(data).strip()
     except (KeyError, IndexError, TypeError, AttributeError):
@@ -140,6 +152,41 @@ def generate(system, prompt, role="answer", temperature=None, timeout=120, as_js
     if not text:
         raise LLMError(f"{provider} {model}: response contains no text")
     return text
+
+
+def stream(system, prompt, role="answer", temperature=None, timeout=120):
+    """Yield the model's answer in pieces as it is generated.
+
+    Streams with the openai provider (server-sent events). The gemini provider yields the
+    whole answer as one piece, since its stream format is not implemented here.
+    """
+    if resolve(role)[0] != "openai":
+        yield generate(system, prompt, role, temperature, timeout)
+        return
+    response, _, provider, model, url = _open(role, system, prompt, temperature, False,
+                                              timeout, stream=True)
+    produced = False
+    try:
+        with response:
+            for raw in response:
+                line = raw.decode("utf-8", errors="replace").strip()
+                if not line.startswith("data:"):        # blank lines and keep-alive comments
+                    continue
+                data = line[5:].strip()
+                if data == "[DONE]":
+                    break
+                event = json.loads(data)
+                if "error" in event:
+                    raise LLMError(f"{provider} {model}: {str(event['error'])[:300]}")
+                choices = event.get("choices") or []
+                piece = (choices[0].get("delta") or {}).get("content") if choices else None
+                if piece:
+                    produced = True
+                    yield piece
+    except (TimeoutError, ValueError, urllib.error.URLError) as e:
+        raise LLMError(f"{provider} {model} at {url}: {e}") from None
+    if not produced:
+        raise LLMError(f"{provider} {model}: response contains no text")
 
 
 JSON_NOTE = "Antworte ausschließlich mit gültigem JSON, ohne weiteren Text."

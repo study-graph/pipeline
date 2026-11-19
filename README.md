@@ -59,7 +59,8 @@ uv run python pipeline.py ask "Wie funktioniert der 3-way Handshake?"
 uv run python pipeline.py ask "..." --prompt-only      # print the prompt, call no model
 ```
 
-The retrieved chunks are numbered `[1]`, `[2]`, ... in the prompt and the model is told
+The answer is printed while the model writes it (streaming with the `openai` provider;
+with `gemini` it appears once complete). The retrieved chunks are numbered `[1]`, `[2]`, ... in the prompt and the model is told
 to cite these numbers. After generation, every cited number is checked against the
 sources that were given. The output lists the cited sources with document, page and
 chunk id.

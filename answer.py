@@ -43,11 +43,25 @@ def check_citations(text, n_sources):
     return sorted(valid), sorted(cited - valid)
 
 
-def answer(question, index=INDEX_DIR):
+def answer(question, index=INDEX_DIR, on_text=None):
     """Retrieve, generate and check. -> dict with the answer text, the chunks it cites
-    as [(number, chunk)], the cited numbers without a source, and all retrieved chunks."""
+    as [(number, chunk)], the cited numbers without a source, and all retrieved chunks.
+
+    With on_text, the answer is streamed: on_text is called with each piece of text as
+    the model produces it."""
     chunks = retrieve(question, index)
-    text = llm.generate(INSTRUCTION, build_prompt(question, chunks))
+    if on_text:
+        pieces = []
+        for piece in llm.stream(INSTRUCTION, build_prompt(question, chunks)):
+            if not pieces:
+                piece = piece.lstrip()              # no blank lines before the answer
+                if not piece:
+                    continue
+            pieces.append(piece)
+            on_text(piece)
+        text = "".join(pieces).strip()
+    else:
+        text = llm.generate(INSTRUCTION, build_prompt(question, chunks))
     valid, invalid = check_citations(text, len(chunks))
     return {"answer": text, "cited": [(n, chunks[n - 1]) for n in valid],
             "invalid": invalid, "retrieved": chunks}
@@ -68,11 +82,12 @@ def run(args):
             chunks = retrieve(question, args.index)
             print(f"{INSTRUCTION}\n\n{build_prompt(question, chunks)}")
             return 0
-        result = answer(question, args.index)
+        result = answer(question, args.index,
+                        on_text=lambda piece: print(piece, end="", flush=True))
     except (ValueError, llm.LLMError) as e:
-        print(f"error: {e}", file=sys.stderr)
+        print(f"\nerror: {e}", file=sys.stderr)
         return 1
-    print(result["answer"])
+    print()
     if result["cited"]:
         print("\nQuellen:")
         for n, c in result["cited"]:
