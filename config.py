@@ -7,9 +7,9 @@ INDEX_DIR = "index"                              # default location of the chunk
 # Language models, one set of settings per role (see llm.py). Each value can be overridden
 # by an environment variable of the same name; LLM_API_KEY and VERIFY_API_KEY hold the keys.
 # Answer generation:
-LLM_PROVIDER = "gemini"
-LLM_MODEL = None                                 # None: the default model of the provider
-LLM_URL = None                                   # None: the default endpoint of the provider
+LLM_PROVIDER = "openai"
+LLM_MODEL = "qwen3.6:35b-a3b-q4_K_M"
+LLM_URL = "http://localhost:11434/v1/chat/completions"
 LLM_REASONING = None                             # e.g. "none"; see llm.py
 # Claim decomposition and verification; None falls back to the LLM_ setting.
 VERIFY_PROVIDER = None
