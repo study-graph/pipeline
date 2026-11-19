@@ -90,6 +90,11 @@ set falls back to the `LLM_` setting of the same name; model, endpoint and key f
 only while both roles use the same provider. Verification can thus run on another model
 than answer generation without code changes.
 
+`LLM_REASONING` and `VERIFY_REASONING` set how much a reasoning model thinks before it
+answers (`reasoning_effort` for `openai`, `thinking_level` for `gemini`). Unset leaves the
+provider default. With a local reasoning model, thinking takes most of the response time:
+for qwen3.6:35b-a3b on Ollama, `none` reduced the answer from 71 s to 13 s.
+
 `openai` stands for any endpoint that speaks the OpenAI chat completions format. This
 includes local servers.
 
@@ -142,11 +147,12 @@ Thresholds of a single step are constants at the top of its module, for example
 
 Following CLAIM-CAL (Pal 2026), an answer is to be split into atomic claims, each claim
 checked against its cited sources by several probes, and the verdicts turned into a
-confidence. Three steps exist so far.
+confidence. Four steps exist so far.
 
 | Module | What it does |
 | --- | --- |
 | `claims.py` | Splits an answer into claims, each with the source numbers the answer cites for it. Method `llm` (default) lets the verify model form atomic, self-contained claims; method `sentences` takes every sentence or list item as one claim, without a model call. Source numbers the answer does not cite are dropped. |
+| `verify.py` | Judges every claim against the sources it cites with three probes (support-seeking, balanced, contradiction-seeking), each answering `supported`, `contradicted` or `unknown`. By default one model call per probe covers all claims. A claim without a cited source is not sent to the model and counts as `unknown`. |
 | `confidence.py` | Risk per claim from the share of contradicting and undecided verdicts (weights 0.7 and 0.5); raw answer confidence is 1 minus the mean claim risk. |
 | `calibrate.py` | Fits an isotonic regression from raw confidence to the observed share of correct answers, stores it as `calibration.json`, and computes the Expected Calibration Error. Without the file, confidence stays uncalibrated. |
 
