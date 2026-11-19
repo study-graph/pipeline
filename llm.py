@@ -12,11 +12,15 @@ Each call is made in a role. The role "answer" writes the answers; the role "ver
 decomposes and checks them. Each role is configured by four settings, taken from the
 environment with priority and otherwise from config.py:
 
-  role answer:  LLM_PROVIDER     LLM_MODEL     LLM_URL     LLM_API_KEY
-  role verify:  VERIFY_PROVIDER  VERIFY_MODEL  VERIFY_URL  VERIFY_API_KEY
+  role answer:  LLM_PROVIDER     LLM_MODEL     LLM_URL     LLM_API_KEY     LLM_REASONING
+  role verify:  VERIFY_PROVIDER  VERIFY_MODEL  VERIFY_URL  VERIFY_API_KEY  VERIFY_REASONING
+
+REASONING sets how much a reasoning model thinks before it answers, e.g. "none", "low" or
+"high"; unset leaves the provider default. Thinking dominates the response time of local
+reasoning models, and models without reasoning reject the setting, so it is opt-in.
 
 A verify setting that is not set falls back to the answer setting of the same name. The
-model, endpoint and key fall back only while both roles use the same provider, so the key
+model, endpoint, key and reasoning fall back only while both roles use the same provider, so the key
 of one provider is never sent to another. Example of a local model:
 
   LLM_PROVIDER=openai LLM_URL=http://localhost:11434/v1/chat/completions LLM_MODEL=<name>
@@ -34,12 +38,14 @@ class LLMError(RuntimeError):
     """The model could not be reached or returned no usable answer."""
 
 
-def _gemini(system, prompt, model, key, temperature, as_json):
+def _gemini(system, prompt, model, key, temperature, as_json, reasoning):
     # JSON is requested through the instruction only (see generate_json).
     headers = {"x-goog-api-key": key, "Api-Revision": "2026-05-20"}
     body = {"model": model, "system_instruction": system, "input": prompt}
-    if temperature is not None:
-        body["generation_config"] = {"temperature": temperature}
+    config = {k: v for k, v in (("temperature", temperature), ("thinking_level", reasoning))
+              if v is not None}
+    if config:
+        body["generation_config"] = config
 
     def text(data):
         outputs = [s for s in data.get("steps", []) if s.get("type") == "model_output"]
@@ -48,12 +54,14 @@ def _gemini(system, prompt, model, key, temperature, as_json):
     return headers, body, text
 
 
-def _openai(system, prompt, model, key, temperature, as_json):
+def _openai(system, prompt, model, key, temperature, as_json, reasoning):
     headers = {"Authorization": f"Bearer {key}"} if key else {}
     body = {"model": model, "messages": [{"role": "system", "content": system},
                                          {"role": "user", "content": prompt}]}
     if temperature is not None:
         body["temperature"] = temperature
+    if reasoning is not None:
+        body["reasoning_effort"] = reasoning
     if as_json:
         # The endpoint requires the word "JSON" in the messages; generate_json adds it.
         body["response_format"] = {"type": "json_object"}
@@ -79,7 +87,7 @@ def setting(name):
 
 
 def resolve(role):
-    """-> (provider, model, url, key) of a role, with fallbacks and defaults applied."""
+    """-> (provider, model, url, key, reasoning) of a role, fallbacks and defaults applied."""
     if role not in ROLES:
         raise LLMError(f"unknown role {role!r} (supported: {', '.join(ROLES)})")
     base, own = "LLM", ROLES[role]
@@ -99,7 +107,7 @@ def resolve(role):
         raise LLMError(f"{own}_MODEL is not set; provider {provider} has no default model")
     if needs_key and not key:
         raise LLMError(f"{own}_API_KEY is not set; provider {provider} requires a key")
-    return provider, model, url, key
+    return provider, model, url, key, value("REASONING")
 
 
 def generate(system, prompt, role="answer", temperature=None, timeout=120, as_json=False):
@@ -108,9 +116,9 @@ def generate(system, prompt, role="answer", temperature=None, timeout=120, as_js
     temperature None leaves the provider default. as_json asks the provider for a JSON
     response where it supports that; use generate_json to also parse it.
     """
-    provider, model, url, key = resolve(role)
+    provider, model, url, key, reasoning = resolve(role)
     build = PROVIDERS[provider][0]
-    headers, body, text_of = build(system, prompt, model, key, temperature, as_json)
+    headers, body, text_of = build(system, prompt, model, key, temperature, as_json, reasoning)
     request = urllib.request.Request(url, data=json.dumps(body).encode(),
                                      headers={"Content-Type": "application/json", **headers})
     try:
