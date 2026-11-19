@@ -9,10 +9,10 @@ cite these numbers. Afterwards every cited number is checked against the sources
 were actually given.
 """
 import argparse
-import re
 import sys
 
 import llm
+from claims import citations
 from config import INDEX_DIR
 from store import where
 
@@ -22,7 +22,6 @@ INSTRUCTION = (
     "Zitiere jede Aussage mit der Nummer der Quelle in eckigen Klammern, z. B. [2]. "
     "Wenn die Quellen die Frage nicht bestimmt beantworten, sage das."
 )
-CITATION = re.compile(r"\[(\d+(?:\s*[,;]\s*\d+)*)\]")
 
 
 def retrieve(question, index):
@@ -39,7 +38,7 @@ def build_prompt(question, chunks):
 
 def check_citations(text, n_sources):
     """-> (cited source numbers that exist, cited numbers that do not), both sorted."""
-    cited = {int(n) for group in CITATION.findall(text) for n in re.findall(r"\d+", group)}
+    cited = citations(text)
     valid = {n for n in cited if 1 <= n <= n_sources}
     return sorted(valid), sorted(cited - valid)
 

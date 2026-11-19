@@ -142,14 +142,16 @@ Thresholds of a single step are constants at the top of its module, for example
 
 Following CLAIM-CAL (Pal 2026), an answer is to be split into atomic claims, each claim
 checked against its cited sources by several probes, and the verdicts turned into a
-confidence. Two steps exist so far; neither calls a language model.
+confidence. Three steps exist so far.
 
 | Module | What it does |
 | --- | --- |
+| `claims.py` | Splits an answer into claims, each with the source numbers the answer cites for it. Method `llm` (default) lets the verify model form atomic, self-contained claims; method `sentences` takes every sentence or list item as one claim, without a model call. Source numbers the answer does not cite are dropped. |
 | `confidence.py` | Risk per claim from the share of contradicting and undecided verdicts (weights 0.7 and 0.5); raw answer confidence is 1 minus the mean claim risk. |
 | `calibrate.py` | Fits an isotonic regression from raw confidence to the observed share of correct answers, stores it as `calibration.json`, and computes the Expected Calibration Error. Without the file, confidence stays uncalibrated. |
 
 ```sh
+uv run python claims.py answer.txt --question "..."            # JSON list of claims
 uv run python calibrate.py fit labelled.json -o calibration.json   # [{"confidence", "label"}]
 uv run python calibrate.py ece heldout.json --calibration calibration.json
 ```
