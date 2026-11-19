@@ -10,10 +10,12 @@ INDEX_DIR = "index"                              # default location of the chunk
 LLM_PROVIDER = "gemini"
 LLM_MODEL = None                                 # None: the default model of the provider
 LLM_URL = None                                   # None: the default endpoint of the provider
+LLM_REASONING = None                             # e.g. "none"; see llm.py
 # Claim decomposition and verification; None falls back to the LLM_ setting.
 VERIFY_PROVIDER = None
 VERIFY_MODEL = None
 VERIFY_URL = None
+VERIFY_REASONING = None                          # e.g. "none"; see llm.py
 
 # Calibration of answer confidence (see calibrate.py). It belongs to the verifier model
 # and its probes, not to an index; without the file, confidence stays uncalibrated.
