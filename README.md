@@ -84,6 +84,12 @@ The provider is set in `config.py` or, with priority, through environment variab
 | `LLM_URL` | Endpoint | The provider's public endpoint |
 | `LLM_API_KEY` | API key | Required for `gemini`, optional for `openai` |
 
+Claim decomposition and verification use their own role with the settings
+`VERIFY_PROVIDER`, `VERIFY_MODEL`, `VERIFY_URL` and `VERIFY_API_KEY`. A setting that is not
+set falls back to the `LLM_` setting of the same name; model, endpoint and key fall back
+only while both roles use the same provider. Verification can thus run on another model
+than answer generation without code changes.
+
 `openai` stands for any endpoint that speaks the OpenAI chat completions format. This
 includes local servers.
 
@@ -131,6 +137,25 @@ because vectors of different models are not comparable.
 Shared settings are in `config.py` (embedding model, index directory, language model).
 Thresholds of a single step are constants at the top of its module, for example
 `MAX_TOKENS` and `OVERLAP` in `chunker.py` or `MIN_RUN` in `clean.py`.
+
+### Confidence scoring (in progress)
+
+Following CLAIM-CAL (Pal 2026), an answer is to be split into atomic claims, each claim
+checked against its cited sources by several probes, and the verdicts turned into a
+confidence. Two steps exist so far; neither calls a language model.
+
+| Module | What it does |
+| --- | --- |
+| `confidence.py` | Risk per claim from the share of contradicting and undecided verdicts (weights 0.7 and 0.5); raw answer confidence is 1 minus the mean claim risk. |
+| `calibrate.py` | Fits an isotonic regression from raw confidence to the observed share of correct answers, stores it as `calibration.json`, and computes the Expected Calibration Error. Without the file, confidence stays uncalibrated. |
+
+```sh
+uv run python calibrate.py fit labelled.json -o calibration.json   # [{"confidence", "label"}]
+uv run python calibrate.py ece heldout.json --calibration calibration.json
+```
+
+Fitted on some answers, the ECE on these same answers is close to zero by construction;
+only the ECE on held-out answers measures calibration.
 
 ## Known limitations
 
