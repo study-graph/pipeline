@@ -1,8 +1,6 @@
 # Corpus & generated artifacts
-netze.md
-netze.clean.md
-chunks.json
-embeddings.npy
+data/corpus/
+data/runs/
 index/
 
 # Python

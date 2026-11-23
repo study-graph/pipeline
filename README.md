@@ -46,7 +46,7 @@ ingest is skipped; of a changed file, only chunks with new content are embedded 
 ### Search without a language model
 
 ```sh
-uv run python embedder.py "Wie funktioniert der 3-way Handshake?"
+uv run python -m retrieval.embedder "Wie funktioniert der 3-way Handshake?"
 ```
 
 Prints the five most similar chunks with document, page range, heading path and
@@ -76,7 +76,7 @@ This check establishes that a cited source exists, not that it supports the stat
 
 ```sh
 uv run python pipeline.py ask "..." --verify                   # claims, verdicts, confidence
-uv run python pipeline.py ask "..." --verify --save run.json   # also store the run
+uv run python pipeline.py ask "..." --verify --save data/runs/run.json   # also store the run
 ```
 
 It warns below `--threshold` (default 0.7) and exits with 3 if the check itself fails.
@@ -85,13 +85,15 @@ local reasoning model set `VERIFY_REASONING=none`; otherwise the check can time 
 
 ## Language model configuration
 
-The provider is set in `config.py` or, with priority, through environment variables.
+The provider is set in `config.py` or, with priority, through environment variables. The
+defaults below are those of `config.py`. To use `gemini`, set `LLM_PROVIDER`, `LLM_MODEL`,
+`LLM_URL` and `LLM_API_KEY`, since model and endpoint are preset for Ollama.
 
 | Variable | Meaning | Default |
 | --- | --- | --- |
-| `LLM_PROVIDER` | `gemini` or `openai` | `gemini` |
-| `LLM_MODEL` | Model name | `gemini-3.8-flash` for `gemini`; required for `openai` |
-| `LLM_URL` | Endpoint | The provider's public endpoint |
+| `LLM_PROVIDER` | `gemini` or `openai` | `openai` |
+| `LLM_MODEL` | Model name | `qwen3.6:35b-a3b-q4_K_M` |
+| `LLM_URL` | Endpoint | Local Ollama server |
 | `LLM_API_KEY` | API key | Required for `gemini`, optional for `openai` |
 
 Claim decomposition and verification use their own role with the settings
@@ -116,6 +118,22 @@ export LLM_URL=http://localhost:11434/v1/chat/completions
 export LLM_MODEL=gemma4:31b
 ```
 
+## Layout
+
+```
+pipeline.py      entry point: ingest, ask
+config.py        shared settings
+llm.py           language model adapter
+ingest/          parse, clean, chunk
+retrieval/       embed, store
+answering/       answer with citations
+claimcal/        claims, verification, confidence, calibration
+data/            questions.txt; corpus/ and runs/ are local and not versioned
+docs/            details on single parts
+```
+
+Run all commands from the repository root, modules as `python -m <folder>.<module>`.
+
 ## How it works
 
 `ingest` chains five steps as function calls. Each step is a module that can also be run
@@ -123,16 +141,16 @@ on its own for debugging.
 
 | Step | Module | What it does |
 | --- | --- | --- |
-| Parse | `parse.py` | Extracts text page by page. In PDFs, lines set in a larger font than the body text become markdown headings. |
-| Clean | `clean.py` | Removes page chrome (headers, footers, navigation bars, page numbers), which it recognises as lines recurring on neighbouring pages. Turns each slide into a titled section and merges the steps of an animated slide. |
-| Chunk | `chunker.py` | Splits sections into chunks of at most 480 tokens of the embedding model, with a 50-token overlap, and merges very small neighbouring slides. Each chunk carries document, heading path, page range and a content-hash id. |
-| Embed | `embedder.py` | Encodes chunks with `multilingual-e5-small`. |
-| Store | `store.py` | Writes chunks and vectors to the index. |
+| Parse | `ingest/parse.py` | Extracts text page by page. In PDFs, lines set in a larger font than the body text become markdown headings. |
+| Clean | `ingest/clean.py` | Removes page chrome (headers, footers, navigation bars, page numbers), which it recognises as lines recurring on neighbouring pages. Turns each slide into a titled section and merges the steps of an animated slide. |
+| Chunk | `ingest/chunker.py` | Splits sections into chunks of at most 480 tokens of the embedding model, with a 50-token overlap, and merges very small neighbouring slides. Each chunk carries document, heading path, page range and a content-hash id. |
+| Embed | `retrieval/embedder.py` | Encodes chunks with `multilingual-e5-small`. |
+| Store | `retrieval/store.py` | Writes chunks and vectors to the index. |
 
 `ask` embeds the question with the same model, takes the five most similar chunks,
-builds the prompt (`answer.py`) and calls the language model through `llm.py`.
+builds the prompt (`answering/answer.py`) and calls the language model through `llm.py`.
 
-Two modules isolate what is expected to change: `store.py` is the only code that knows
+Two modules isolate what is expected to change: `retrieval/store.py` is the only code that knows
 the index layout, and `llm.py` is the only code that knows a provider API.
 
 ### Index layout
@@ -151,29 +169,14 @@ because vectors of different models are not comparable.
 
 Shared settings are in `config.py` (embedding model, index directory, language model).
 Thresholds of a single step are constants at the top of its module, for example
-`MAX_TOKENS` and `OVERLAP` in `chunker.py` or `MIN_RUN` in `clean.py`.
+`MAX_TOKENS` and `OVERLAP` in `ingest/chunker.py` or `MIN_RUN` in `ingest/clean.py`.
 
 ### Confidence scoring
 
-`ask --verify` follows CLAIM-CAL (Pal 2026): `check.py` splits the answer into atomic
-claims, checks each claim against its cited sources with several probes, and turns the
-verdicts into a confidence.
-
-| Module | What it does |
-| --- | --- |
-| `claims.py` | Splits an answer into claims, each with the source numbers the answer cites for it. Method `llm` (default) lets the verify model form atomic, self-contained claims; method `sentences` takes every sentence or list item as one claim, without a model call. Source numbers the answer does not cite are dropped. |
-| `verify.py` | Judges every claim against the sources it cites with three probes (support-seeking, balanced, contradiction-seeking), each answering `supported`, `contradicted` or `unknown`. By default one model call per probe covers all claims. A claim without a cited source is not sent to the model and counts as `unknown`. |
-| `confidence.py` | Risk per claim from the share of contradicting and undecided verdicts (weights 0.7 and 0.5); raw answer confidence is 1 minus the mean claim risk. |
-| `calibrate.py` | Fits an isotonic regression from raw confidence to the observed share of correct answers, stores it as `calibration.json`, and computes the Expected Calibration Error. Without the file, confidence stays uncalibrated. |
-
-```sh
-uv run python claims.py answer.txt --question "..."            # JSON list of claims
-uv run python calibrate.py fit labelled.json -o calibration.json   # [{"confidence", "label"}]
-uv run python calibrate.py ece heldout.json --calibration calibration.json
-```
-
-Fitted on some answers, the ECE on these same answers is close to zero by construction;
-only the ECE on held-out answers measures calibration.
+`ask --verify` follows CLAIM-CAL (Pal 2026): it splits the answer into atomic claims, checks
+each against its cited sources with several probes, and turns the verdicts into a
+confidence. Modules, collection of labelled answers and calibration are described in
+[docs/claim-cal.md](docs/claim-cal.md).
 
 ## Known limitations
 
