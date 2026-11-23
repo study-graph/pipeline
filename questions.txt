@@ -1,0 +1,45 @@
+# Entwurf, vor der Nutzung prüfen. Eine Frage pro Zeile.
+# Direkt belegt
+Wofür steht die Abkürzung B2B?
+Was unterscheidet FDM und TDM?
+Wie funktioniert CDMA?
+Was besagt das Abtasttheorem von Nyquist und Shannon?
+Was unterscheidet LED und Laser als Lichtquellen für Glasfaser?
+Wozu dient die Sicherungsschicht?
+Wie funktioniert Rahmenbildung mit Flagbytes und Bytestopfen?
+Wie funktioniert Bitstopfen?
+Was ist der Hamming-Abstand?
+Wie viele Fehler lassen sich bei einem bestimmten Hamming-Abstand erkennen und korrigieren?
+Wie funktioniert ein Paritätsbit?
+Was unterscheidet Pure ALOHA und Slotted ALOHA?
+Wie funktioniert CSMA/CD?
+Was ist das Hidden Terminal Problem?
+Was ist das Exposed Terminal Problem?
+Wie funktioniert MACA?
+Was unterscheidet Store-and-Forward und Cut-Through?
+Wie funktioniert Backward Learning?
+Wozu dient der Spanning Tree Algorithmus?
+Wie läuft der 3-Wege-Handshake ab?
+Welche Timer verwendet TCP?
+Was ist AIMD?
+Was ist die ACK Clock?
+Warum wurde QUIC entwickelt?
+Wie wird der RTO initialisiert?
+Was ist ein CDN?
+Wozu dienen MIME-Typen?
+Wie funktioniert IMAP?
+# Rechnen und Schließen
+Berechne SRTT, RTTVAR und RTO vor Anwendung des Minimums nach der zweiten Messung für RTT_0 = 80 ms und RTT_1 = 120 ms.
+Welche maximale Datenrate hat ein rauschfreier Kanal mit 4 kHz Bandbreite und 4 Signalstufen nach Nyquist?
+Wie viele Bitfehler erkennt und korrigiert ein Code mit Hamming-Abstand 5?
+Warum kann der Verbindungsabbau nicht völlig sicher gestaltet werden, und was hat das mit den zwei Armeen zu tun?
+Warum ist Stop-and-Wait bei hoher Latenz ineffizient, und was folgt daraus für TCP?
+Was geschieht bei TCP, wenn das Window 0 ist und das Window Update verloren geht?
+# Falsche Prämisse
+Warum aktualisiert der Karn-Algorithmus die SRTT gerade bei wiederholt übertragenen Segmenten?
+Warum garantiert UDP die Reihenfolge der Segmente?
+Warum ist Pure ALOHA effizienter als Slotted ALOHA?
+Warum erkennt CSMA/CD Kollisionen erst nach dem Ende der Übertragung?
+# Im Material vermutlich nicht beantwortet
+Wie funktioniert der CUBIC-Algorithmus?
+Wie ist ein Kubernetes-Service aufgebaut?

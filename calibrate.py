@@ -22,6 +22,7 @@ import numpy as np
 from config import CALIBRATION_FILE
 
 ECE_BINS = 10
+FOLDS = 5
 
 
 class Calibrator:
@@ -116,9 +117,21 @@ def ece(confidences, labels, bins=ECE_BINS):
     return float(total)
 
 
+def cross_validate(raw, labels, folds=FOLDS):
+    """-> calibrated confidence of each answer, from a fit that did not see that answer."""
+    raw, labels = np.asarray(raw, float), np.asarray(labels, float)
+    fold = np.random.default_rng(0).permutation(len(raw)) % folds
+    out = np.empty(len(raw))
+    for k in range(folds):
+        test = fold == k
+        if test.any():
+            out[test] = fit(raw[~test], labels[~test]).apply(raw[test])
+    return out
+
+
 def _read(path):
     rows = json.loads(Path(path).read_text(encoding="utf-8"))
-    rows = [r for r in rows if r.get("confidence") is not None]
+    rows = [r for r in rows if r.get("confidence") is not None and r.get("label") is not None]
     return [r["confidence"] for r in rows], [r["label"] for r in rows]
 
 
@@ -137,9 +150,15 @@ def main():
         if args.command == "fit":
             cal = fit(raw, labels)
             save(cal, args.output)
-            print(f"{args.output}: fitted on {cal.n} answers, {len(cal.x)} points; "
-                  f"ECE on these answers {ece(raw, labels):.3f} -> "
-                  f"{ece(cal.apply(raw), labels):.3f}")
+            print(f"{args.output}: fitted on {cal.n} answers ({int(sum(labels))} correct), "
+                  f"{len(cal.x)} points")
+            # The ECE on the fitted answers themselves is close to 0 by construction.
+            if cal.n >= 2 * FOLDS:
+                print(f"ECE raw {ece(raw, labels):.3f}, calibrated "
+                      f"{ece(cross_validate(raw, labels), labels):.3f} "
+                      f"({FOLDS}-fold cross-validation)")
+            if len(set(labels)) < 2:
+                print("warning: all labels are equal, the mapping is constant")
         else:
             conf = load(args.calibration).apply(raw) if args.calibration else raw
             print(f"ECE {ece(conf, labels):.3f} over {len(raw)} answers")
