@@ -1,8 +1,8 @@
 """Clean page-wise extracted lecture material into heading-structured markdown.
 
-  python clean.py slides.md                   # -> slides.clean.md
-  python clean.py script.md -o out.md --headings keep
-  python clean.py deck.md --page-sep '\\n-----\\n' -v
+  python -m ingest.clean slides.md                   # -> slides.clean.md
+  python -m ingest.clean script.md -o out.md --headings keep
+  python -m ingest.clean deck.md --page-sep '\\n-----\\n' -v
 
 Nothing here is tied to a particular deck. The only assumptions are:
   * pages are separated by a form feed, as parse.py writes them. Input without form

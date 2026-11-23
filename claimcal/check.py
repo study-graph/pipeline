@@ -3,10 +3,7 @@
 Chains claims.py -> verify.py -> confidence.py -> calibrate.py. Only the answer and its
 sources are needed, not the index, so stored or benchmark answers can be checked too.
 """
-import calibrate
-import claims
-import confidence
-import verify
+from claimcal import calibrate, claims, confidence, verify
 from config import CALIBRATION_FILE
 
 

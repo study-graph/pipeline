@@ -1,8 +1,8 @@
 """Collect answers with raw confidence and label them, as input for calibrate.py.
 
-  python collect.py run questions.txt -o runs.json   # one question per line, # = comment
-  python collect.py label runs.json                  # judge each answer: r, f, s or q
-  python calibrate.py fit runs.json                  # fit on the labelled answers
+  python -m claimcal.collect run data/questions.txt   # one question per line, # = comment
+  python -m claimcal.collect label data/runs/runs.json   # judge each answer: r, f, s or q
+  python -m claimcal.calibrate fit data/runs/runs.json   # fit on the labelled answers
 
 Both steps save after every answer and continue where they stopped. An answer is labelled
 1 only if everything it states is correct and it answers the question; saying that the
@@ -15,9 +15,9 @@ import json
 import os
 from pathlib import Path
 
-import check
 import llm
-from answer import answer
+from answering.answer import answer
+from claimcal import check
 from config import INDEX_DIR
 
 
@@ -27,6 +27,7 @@ def load(path):
 
 
 def save(rows, path):
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
     tmp = Path(f"{path}.tmp")
     tmp.write_text(json.dumps(rows, ensure_ascii=False, indent=1), encoding="utf-8")
     os.replace(tmp, path)                           # an interrupted write keeps the old file
@@ -82,7 +83,7 @@ def main():
     sub = ap.add_subparsers(dest="command", required=True)
     r = sub.add_parser("run", help="answer and check every question")
     r.add_argument("questions")
-    r.add_argument("-o", "--output", default="runs.json")
+    r.add_argument("-o", "--output", default="data/runs/runs.json")
     r.add_argument("--index", default=INDEX_DIR)
     sub.add_parser("label", help="label the collected answers").add_argument("runs")
     args = ap.parse_args()

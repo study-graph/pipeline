@@ -1,7 +1,7 @@
 """Embed texts with the local model, or search an index from the command line.
 
-  python embedder.py "deine Frage"              # top-k chunks of the default index
-  python embedder.py "deine Frage" --index other/
+  python -m retrieval.embedder "deine Frage"   # top-k chunks of the default index
+  python -m retrieval.embedder "deine Frage" --index other/
 
 The index is built by `python pipeline.py ingest`.
 """
@@ -10,8 +10,8 @@ import argparse
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
-import store
 from config import EMBED_MODEL as MODEL, INDEX_DIR
+from retrieval import store
 
 TOP_K = 5
 

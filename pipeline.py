@@ -14,12 +14,10 @@ import hashlib
 import sys
 from pathlib import Path
 
-import answer
-import chunker
-import clean
-import parse
-import store
+from answering import answer
 from config import EMBED_MODEL, INDEX_DIR
+from ingest import chunker, clean, parse
+from retrieval import store
 
 
 def ingest(path, index=INDEX_DIR, count=None, force=False, save_steps=None):
@@ -48,7 +46,7 @@ def ingest(path, index=INDEX_DIR, count=None, force=False, save_steps=None):
         if meta["model"] == EMBED_MODEL else {}
     new = [c for c in chunks if c["id"] not in known]
     if new:
-        import embedder                             # imported late: loading torch is slow
+        from retrieval import embedder                             # imported late: loading torch is slow
         known.update(zip((c["id"] for c in new), embedder.encode([c["embed_text"] for c in new])))
     store.put(index, doc, chunks, [known[c["id"]] for c in chunks], EMBED_MODEL, source_hash)
     return {"doc": doc, "status": "ingested", "kind": kind, "pages": stats["pages"],

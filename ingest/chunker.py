@@ -1,7 +1,7 @@
 """Split cleaned markdown into heading-aware chunks with source metadata.
 
-  python chunker.py slides.clean.md            # -> chunks.json
-  python chunker.py slides.clean.md -o out.json --doc netztechnik-0
+  python -m ingest.chunker slides.clean.md            # -> chunks.json
+  python -m ingest.chunker slides.clean.md -o out.json --doc netztechnik-0
 
 Each chunk records its document, heading path and page range, and has an id derived
 from its content, so an unchanged chunk keeps its id across runs. Sizes are measured

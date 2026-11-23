@@ -12,11 +12,11 @@ Two methods produce the same output, a list of {"text": ..., "sources": [n, ...]
   sentences  Every sentence or list item is one claim. No model call; a baseline that is
              coarser, since a sentence can hold several claims.
 
-  python claims.py answer.txt                      # JSON list of claims on stdout
+  python -m claimcal.claims answer.txt   # JSON list of claims on stdout
                                                    # (a source list as printed by
                                                    # `pipeline.py ask` is ignored)
-  python claims.py - --method sentences < answer.txt
-  python claims.py answer.txt --question "Wie funktioniert der 3-way Handshake?"
+  python -m claimcal.claims - --method sentences < answer.txt
+  python -m claimcal.claims answer.txt --question "Wie funktioniert der 3-way Handshake?"
 """
 import argparse
 import json

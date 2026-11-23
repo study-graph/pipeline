@@ -20,14 +20,14 @@ Settings, each a parameter of verify():
           "claim": one call per probe and claim (3 x claims calls, independent judgements).
 Up to WORKERS calls run at a time.
 
-  python verify.py claims.json chunks.json      # claims from claims.py, chunks as retrieved
+  python -m claimcal.verify claims.json chunks.json      # claims from claims.py, chunks as retrieved
 """
 import argparse
 import json
 from concurrent.futures import ThreadPoolExecutor
 
 import llm
-from confidence import VERDICTS
+from claimcal.confidence import VERDICTS
 
 # Parallel calls help with a remote API. A local server shares one GPU between them, so
 # there they are slower than sequential calls (measured with Ollama: 34.6 s against 23.5 s).

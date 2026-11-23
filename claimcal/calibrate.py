@@ -10,8 +10,8 @@ points are stored, so a calibration is a small JSON file:
 A calibration belongs to the verifier model and the probes that produced the raw values.
 Without a calibration file the mapping is the identity, and the result says so.
 
-  python calibrate.py fit data.json -o calibration.json   # data: [{"confidence", "label"}]
-  python calibrate.py ece data.json [--calibration calibration.json]
+  python -m claimcal.calibrate fit data.json -o calibration.json   # data: [{"confidence", "label"}]
+  python -m claimcal.calibrate ece data.json [--calibration calibration.json]
 """
 import argparse
 import json

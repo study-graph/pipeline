@@ -12,7 +12,7 @@ is not a probability; calibrate.py maps it to one.
 No language model is called here, so the results are deterministic and cheap to recompute
 from stored verdicts, for example with other weights.
 
-  python confidence.py claims.json      # claims with "verdicts" -> risks and confidence
+  python -m claimcal.confidence claims.json      # claims with "verdicts" -> risks and confidence
 """
 import json
 import sys

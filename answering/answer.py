@@ -1,8 +1,8 @@
 """Answer a question from the indexed material, with checked source citations.
 
-  python answer.py "deine Frage"                 # retrieve, ask the LLM, check citations
-  python answer.py "deine Frage" --prompt-only   # print the prompt instead of calling the LLM
-  python answer.py "deine Frage" --index other/
+  python -m answering.answer "deine Frage"   # retrieve, ask the LLM, check citations
+  python -m answering.answer "deine Frage" --prompt-only   # print the prompt instead of calling the LLM
+  python -m answering.answer "deine Frage" --index other/
 
 The retrieved chunks are numbered [1], [2], ... in the prompt, and the LLM is told to
 cite these numbers. Afterwards every cited number is checked against the sources that
@@ -12,11 +12,11 @@ import argparse
 import json
 import sys
 
-import check
 import llm
-from claims import citations
+from claimcal import check
+from claimcal.claims import citations
 from config import INDEX_DIR
-from store import where
+from retrieval.store import where
 
 INSTRUCTION = (
     "Beantworte die Frage ausschließlich mit den folgenden Quellen; betone die "
@@ -27,7 +27,7 @@ INSTRUCTION = (
 
 
 def retrieve(question, index):
-    from embedder import search                     # imported late: loading torch is slow
+    from retrieval.embedder import search                     # imported late: loading torch is slow
     return [chunk for _, chunk in search(question, index)]
 
 

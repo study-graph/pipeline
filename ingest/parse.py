@@ -1,7 +1,7 @@
 """Parse a source file into page-wise text, the input format of clean.py.
 
-  python parse.py slides.pdf                  # -> slides.md
-  python parse.py slides.pdf -o out.md
+  python -m ingest.parse slides.pdf                  # -> slides.md
+  python -m ingest.parse slides.pdf -o out.md
 
 Pages are separated by a form feed, so later steps can tell them apart without
 guessing. The file type is detected from the content, not from the file extension.
