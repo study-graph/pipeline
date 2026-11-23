@@ -71,8 +71,17 @@ chunk id.
 | 1 | Index empty, model unreachable, or configuration incomplete |
 | 2 | The answer cites a source number that was not given |
 
-The check establishes that a cited source exists. It does not establish that the source
-supports the statement.
+This check establishes that a cited source exists, not that it supports the statement.
+`--verify` checks the latter:
+
+```sh
+uv run python pipeline.py ask "..." --verify                   # claims, verdicts, confidence
+uv run python pipeline.py ask "..." --verify --save run.json   # also store the run
+```
+
+It warns below `--threshold` (default 0.7) and exits with 3 if the check itself fails.
+Without `calibration.json` the confidence is uncalibrated and not a probability. With a
+local reasoning model set `VERIFY_REASONING=none`; otherwise the check can time out.
 
 ## Language model configuration
 
@@ -144,11 +153,11 @@ Shared settings are in `config.py` (embedding model, index directory, language m
 Thresholds of a single step are constants at the top of its module, for example
 `MAX_TOKENS` and `OVERLAP` in `chunker.py` or `MIN_RUN` in `clean.py`.
 
-### Confidence scoring (in progress)
+### Confidence scoring
 
-Following CLAIM-CAL (Pal 2026), an answer is to be split into atomic claims, each claim
-checked against its cited sources by several probes, and the verdicts turned into a
-confidence. Four steps exist so far.
+`ask --verify` follows CLAIM-CAL (Pal 2026): `check.py` splits the answer into atomic
+claims, checks each claim against its cited sources with several probes, and turns the
+verdicts into a confidence.
 
 | Module | What it does |
 | --- | --- |

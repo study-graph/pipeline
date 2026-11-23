@@ -1,7 +1,9 @@
 """Check claims against their sources with several differently framed probes.
 
-Follows CLAIM-CAL (Pal 2026) with one change: a claim is checked against the lecture
-material it cites, not against the model's own knowledge. Each probe judges each claim
+Follows CLAIM-CAL (Pal 2026) with two changes. A claim is checked against the lecture
+material it cites, not against the model's own knowledge. And a probe does not see the
+full answer: shown the answer, the model takes it as evidence and confirms invented claims
+(qwen3.6, batch "probe": 5 of 5 invented claims supported, 0 of 5 without). Each probe judges each claim
 as one of
 
   supported     the sources state the claim
@@ -75,7 +77,7 @@ def ask_probe(probe, items, chunks):
     data = llm.generate_json(system, build_prompt(items, chunks), role="verify")
     rows = data.get("verdicts") if isinstance(data, dict) else None
     if not isinstance(rows, list):
-        raise llm.LLMError(f'{probe}: response is not of the form {{"verdicts": [...]}}')
+        raise llm.FormatError(f'{probe}: response is not of the form {{"verdicts": [...]}}')
     wanted, out = {i for i, _, _ in items}, {}
     for row in rows:
         try:
@@ -87,14 +89,33 @@ def ask_probe(probe, items, chunks):
     return out
 
 
+def judge(probe, items, chunks):
+    """ask_probe, asking again for what is missing. -> {claim number: verdict}
+
+    Claims left out of a response are asked again on their own; if a response is unusable
+    as a whole, its claims are asked in two halves. A claim that fails alone stays missing.
+    """
+    try:
+        out = ask_probe(probe, items, chunks)
+    except llm.FormatError:
+        out = {}
+    missing = [item for item in items if item[0] not in out]
+    if not missing or len(items) == 1:
+        return out
+    half = (len(missing) + 1) // 2
+    for part in [missing] if len(missing) < len(items) else [missing[:half], missing[half:]]:
+        out.update(judge(probe, part, chunks))
+    return out
+
+
 def verify(claims, chunks, probes=tuple(PROBES), scope="cited", batch="probe",
            workers=WORKERS):
     """-> claims, each copied with "verdicts" {probe: verdict} and "evidence" added.
 
     chunks are the sources in the numbering of the answer: [n] is chunks[n - 1].
     A claim without evidence is not sent to the model; every probe counts it as
-    "unknown". A verdict the model leaves out or gives in an invalid form also counts as
-    "unknown", and the probe is listed under "failed" of that claim.
+    "unknown". A verdict the model still does not give after being asked again also counts
+    as "unknown", and the probe is listed under "failed" of that claim.
     """
     if batch not in BATCHES:
         raise ValueError(f"unknown batch {batch!r} (expected one of {BATCHES})")
@@ -107,7 +128,7 @@ def verify(claims, chunks, probes=tuple(PROBES), scope="cited", batch="probe",
     jobs = [(p, g) for p in probes for g in groups if g]
 
     with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
-        results = list(pool.map(lambda job: (job[0], ask_probe(job[0], job[1], chunks)), jobs))
+        results = list(pool.map(lambda job: (job[0], judge(job[0], job[1], chunks)), jobs))
     found = {p: {} for p in probes}
     for probe, verdicts in results:
         found[probe].update(verdicts)

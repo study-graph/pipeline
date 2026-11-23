@@ -38,6 +38,10 @@ class LLMError(RuntimeError):
     """The model could not be reached or returned no usable answer."""
 
 
+class FormatError(LLMError):
+    """The model answered, but not in the requested form."""
+
+
 def _gemini(system, prompt, model, key, temperature, as_json, reasoning):
     # JSON is requested through the instruction only (see generate_json).
     headers = {"x-goog-api-key": key, "Api-Revision": "2026-05-20"}
@@ -199,7 +203,7 @@ def parse_json(text):
     try:
         return json.loads(match.group(1) if match else text)
     except ValueError:
-        raise LLMError(f"response is not valid JSON: {text[:200]!r}") from None
+        raise FormatError(f"response is not valid JSON: {text[:200]!r}") from None
 
 
 def generate_json(system, prompt, role="verify", temperature=0, timeout=120):

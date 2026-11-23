@@ -68,7 +68,10 @@ def _by_llm(answer, question):
     if not isinstance(data, dict) or not isinstance(data.get("claims"), list):
         raise llm.LLMError(f'decomposition is not of the form {{"claims": [...]}}: '
                            f"{str(data)[:200]}")
-    return validate(data["claims"], citations(answer))
+    found = validate(data["claims"], citations(answer))
+    # An answer that cites sources states something: an empty result is a failed
+    # extraction, not an answer without claims (fallback as in Pal 2026).
+    return found or (_by_sentences(answer) if citations(answer) else [])
 
 
 def validate(raw_claims, cited):

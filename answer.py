@@ -9,8 +9,10 @@ cite these numbers. Afterwards every cited number is checked against the sources
 were actually given.
 """
 import argparse
+import json
 import sys
 
+import check
 import llm
 from claims import citations
 from config import INDEX_DIR
@@ -72,6 +74,34 @@ def add_arguments(ap):
     ap.add_argument("--index", default=INDEX_DIR, help="index directory (default: %(default)s)")
     ap.add_argument("--prompt-only", action="store_true",
                     help="print the prompt instead of calling the LLM")
+    ap.add_argument("--verify", action="store_true",
+                    help="check every claim against its sources and print a confidence")
+    ap.add_argument("--threshold", type=float, default=0.7,
+                    help="with --verify: warn below this confidence (default: %(default)s)")
+    ap.add_argument("--save", metavar="FILE",
+                    help="with --verify: also write question, answer, sources and check as JSON")
+
+
+SHORT = {"supported": "+", "contradicted": "-", "unknown": "?"}
+
+
+def print_check(result, threshold):
+    print("\nPrüfung (+ gestützt, - widersprochen, ? unklar; je Probe ein Zeichen):")
+    for c in result["claims"]:
+        marks = "".join(SHORT[v] for v in c["verdicts"].values())
+        sources = "".join(f"[{n}]" for n in c["sources"]) or "ohne Quelle"
+        print(f"  {marks}  Risiko {c['risk']:.2f}  {c['text']} {sources}")
+        if c.get("failed"):
+            print(f"       ohne gültiges Verdikt: {', '.join(c['failed'])}")
+    conf = result["confidence"]
+    if conf is None:
+        print("Konfidenz: keine, die Antwort enthält keine prüfbaren Aussagen")
+        return
+    print(f"Konfidenz: {conf:.2f} "
+          + ("(kalibriert)" if result["calibrated"] else "(unkalibriert, keine Wahrscheinlichkeit)"))
+    if conf < threshold:
+        print(f"\nWarnung: Konfidenz unter {threshold:.2f}, Antwort in den Quellen prüfen.",
+              file=sys.stderr)
 
 
 def run(args):
@@ -97,6 +127,19 @@ def run(args):
               + ", ".join(f"[{n}]" for n in result["invalid"]), file=sys.stderr)
     if not result["cited"]:
         print("\nWarnung: die Antwort zitiert keine der Quellen.", file=sys.stderr)
+    if args.verify:
+        print("\nPrüfe Aussagen ...", file=sys.stderr, flush=True)
+        try:
+            checked = check.check(result["answer"], result["retrieved"], question)
+            print_check(checked, args.threshold)
+            if args.save:
+                with open(args.save, "w", encoding="utf-8") as f:
+                    json.dump({"question": question, "answer": result["answer"],
+                               "chunks": result["retrieved"], **checked},
+                              f, ensure_ascii=False, indent=1)
+        except (ValueError, OSError, llm.LLMError) as e:
+            print(f"error: Prüfung fehlgeschlagen: {e}", file=sys.stderr)
+            return 3
     return 2 if result["invalid"] else 0
 
 
