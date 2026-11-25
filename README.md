@@ -28,15 +28,15 @@ The first `ingest` downloads the embedding model `intfloat/multilingual-e5-small
 ### Add documents to the index
 
 ```sh
-uv run python pipeline.py ingest slides.pdf script.md
-uv run python pipeline.py ingest corpus/               # every supported file below corpus/
-uv run python pipeline.py ingest slides.pdf --save-steps debug/
+uv run python pipeline.py ingest data/slides.pdf script.md
+uv run python pipeline.py ingest data/corpus/               # every supported file below corpus/
+uv run python pipeline.py ingest data/slides.pdf --save-steps debug/
 ```
 
 Supported inputs are PDF and plain text or markdown. The type is detected from the file
-content, not from the extension. A file whose content has not changed since its last
-ingest is skipped; of a changed file, only chunks with new content are embedded again.
-
+content, not from the extension. nly chunks with new content are embedded again.
+A file whose content has not changed since its last
+ingest is skipped; of a changed file, o
 | Option | Effect |
 | --- | --- |
 | `--index DIR` | Index directory, default `index/` |
