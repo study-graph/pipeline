@@ -19,6 +19,13 @@ local one.
 uv sync
 ```
 
+Optionally, copy `.env.example` to `.env` and customize settings for your environment:
+
+```sh
+cp .env.example .env
+# edit .env with your values
+```
+
 The first `ingest` downloads the embedding model `intfloat/multilingual-e5-small`
 (about 470 MB) from Hugging Face. Afterwards the pipeline works offline; setting
 `HF_HUB_OFFLINE=1` skips the update check and silences the related warning.
@@ -83,20 +90,40 @@ It warns below `--threshold` (default 0.7) and exits with 3 if the check itself 
 Without `calibration.json` the confidence is uncalibrated and not a probability. With a
 local reasoning model set `VERIFY_REASONING=none`; otherwise the check can time out.
 
-## Language model configuration
+## Configuration
 
-The provider is set in `config.py` or, with priority, through environment variables. The
-defaults below are those of `config.py`. To use `gemini`, set `LLM_PROVIDER`, `LLM_MODEL`,
-`LLM_URL` and `LLM_API_KEY`, since model and endpoint are preset for Ollama.
+Settings are read from a `.env` file in the project root, with fallback to built-in
+defaults. See `.env.example` for all available options.
+
+### Environment variables
+
+Values can be set via environment variables (highest priority), `.env` file, or defaults.
+Environment variables override `.env` values:
+
+```sh
+# via .env
+LLM_MODEL=gemma4:31b
+LLM_URL=http://localhost:11434/v1/chat/completions
+
+# or via shell (overrides .env)
+export LLM_MODEL=llama3.2:3b
+uv run python pipeline.py ask "question"
+```
+
+### Language models
+
+The provider is set via the `LLM_PROVIDER`, `LLM_MODEL`, `LLM_URL` and `LLM_API_KEY`
+variables. To use `gemini`, set all four; for Ollama (default), only `LLM_MODEL` usually
+needs to change.
 
 | Variable | Meaning | Default |
 | --- | --- | --- |
 | `LLM_PROVIDER` | `gemini` or `openai` | `openai` |
 | `LLM_MODEL` | Model name | `qwen3.6:35b-a3b-q4_K_M` |
-| `LLM_URL` | Endpoint | Local Ollama server |
+| `LLM_URL` | Endpoint | `http://localhost:11434/v1/chat/completions` |
 | `LLM_API_KEY` | API key | Required for `gemini`, optional for `openai` |
 
-Claim decomposition and verification use their own role with the settings
+Claim decomposition and verification use their own role with settings
 `VERIFY_PROVIDER`, `VERIFY_MODEL`, `VERIFY_URL` and `VERIFY_API_KEY`. A setting that is not
 set falls back to the `LLM_` setting of the same name; model, endpoint and key fall back
 only while both roles use the same provider. Verification can thus run on another model
@@ -110,12 +137,23 @@ for qwen3.6:35b-a3b on Ollama, `none` reduced the answer from 71 s to 13 s.
 `openai` stands for any endpoint that speaks the OpenAI chat completions format. This
 includes local servers.
 
-Local model with Ollama (run `ollama serve` in another terminal):
+### Example: local model with Ollama
+
+Run `ollama serve` in another terminal, then set in `.env`:
+
+```dotenv
+LLM_PROVIDER=openai
+LLM_URL=http://localhost:11434/v1/chat/completions
+LLM_MODEL=gemma4:31b
+```
+
+Or set them directly in the shell:
 
 ```sh
 export LLM_PROVIDER=openai
 export LLM_URL=http://localhost:11434/v1/chat/completions
 export LLM_MODEL=gemma4:31b
+uv run python pipeline.py ask "question"
 ```
 
 ## Layout
@@ -167,9 +205,9 @@ because vectors of different models are not comparable.
 
 ### Settings
 
-Shared settings are in `config.py` (embedding model, index directory, language model).
-Thresholds of a single step are constants at the top of its module, for example
-`MAX_TOKENS` and `OVERLAP` in `ingest/chunker.py` or `MIN_RUN` in `ingest/clean.py`.
+Shared settings are loaded from `.env` via `config.py` (embedding model, index directory,
+language model). Thresholds of a single step are constants at the top of its module, for
+example `MAX_TOKENS` and `OVERLAP` in `ingest/chunker.py` or `MIN_RUN` in `ingest/clean.py`.
 
 ### Confidence scoring
 
